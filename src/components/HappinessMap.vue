@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import * as d3 from 'd3'
 import { debounce } from 'lodash'
-import { ref, computed, watchEffect, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, watchEffect, onMounted, onBeforeUnmount } from 'vue'
 import type { FeatureCollection, Geometry, GeoJsonProperties } from 'geojson'
 
 import { ComponentSize, Margin } from '../types'
@@ -14,17 +14,58 @@ const mapContainer = ref<HTMLElement | null>(null)
 const mapStage = ref<HTMLElement | null>(null)
 const tooltip = ref<HTMLElement | null>(null)
 const geoData = ref<FeatureCollection<Geometry, GeoJsonProperties> | null>(null)
-type YearEntry = { score: number; rank: number }
+type FactorEntry = { label: string; value: number }
+type YearEntry = { score: number; rank: number; factors: FactorEntry[] }
 const happinessByYear = ref<Map<number, Map<string, YearEntry>>>(new Map())
 const years = ref<number[]>([])
 const selectedYear = ref<number>(2024)
 const isPlaying = ref(false)
 let playTimer: number | null = null
+const mode = ref<'score' | 'delta'>('score')
+const deltaYearA = ref<number | null>(null)
+const deltaYearB = ref<number | null>(null)
+let resizeObserver: ResizeObserver | null = null
 
+const props = defineProps<{
+    selectedKeys: string[]
+}>()
+
+const emit = defineEmits<{
+    (event: 'country-selected', payload: {
+        key: string
+        name: string
+        year: number | null
+        score: number | null
+        rank: number | null
+        factors: FactorEntry[]
+        hasData: boolean
+    }): void
+}>()
+
+type FactorColumn = { label: string; column: string } | { label: string; columns: string[] }
+
+const factorColumns: FactorColumn[] = [
+    { label: 'Log GDP per capita', column: 'Explained by: Log GDP per capita' },
+    { label: 'Social support', column: 'Explained by: Social support' },
+    { label: 'Healthy life expectancy', column: 'Explained by: Healthy life expectancy' },
+    { label: 'Freedom to make life choices', column: 'Explained by: Freedom to make life choices' },
+    {
+        label: 'Generosity + corruption',
+        columns: ['Explained by: Generosity', 'Explained by: Perceptions of corruption']
+    },
+    { label: 'Dystopia + residual', column: 'Dystopia + residual' }
+]
 
 const canRender = computed(() => {
-    const yearData = happinessByYear.value.get(selectedYear.value)
-    return geoData.value !== null && !!yearData && yearData.size > 0 && size.value.width > 0 && size.value.height > 0
+    if (geoData.value === null || size.value.width <= 0 || size.value.height <= 0) return false
+    if (mode.value === 'score') {
+        const yearData = happinessByYear.value.get(selectedYear.value)
+        return !!yearData && yearData.size > 0
+    }
+    if (deltaYearA.value === null || deltaYearB.value === null) return false
+    const fromData = happinessByYear.value.get(deltaYearA.value)
+    const toData = happinessByYear.value.get(deltaYearB.value)
+    return !!fromData && !!toData && fromData.size > 0 && toData.size > 0
 })
 
 const normalizeCountryName = (value: string) =>
@@ -120,17 +161,39 @@ async function loadData() {
         const score = Number(row['Life evaluation (3-year average)'])
         const rank = Number(row['Rank'])
         if (!country || Number.isNaN(score) || Number.isNaN(rank)) return
+        const factors: FactorEntry[] = factorColumns
+            .map((factor) => {
+                if ('columns' in factor) {
+                    const values = factor.columns.map((column) => Number(row[column]))
+                    if (values.some((value) => Number.isNaN(value))) return null
+                    const sum = values.reduce((acc, value) => acc + value, 0)
+                    return { label: factor.label, value: sum }
+                }
+                const value = Number(row[factor.column])
+                return Number.isNaN(value) ? null : { label: factor.label, value }
+            })
+            .filter((value): value is FactorEntry => value !== null)
         yearSet.add(year)
         if (!dataMap.has(year)) {
             dataMap.set(year, new Map())
         }
-        dataMap.get(year)?.set(canonicalizeCountryName(country), { score, rank })
+        dataMap.get(year)?.set(canonicalizeCountryName(country), { score, rank, factors })
     })
     happinessByYear.value = dataMap
     const yearList = Array.from(yearSet).sort((a, b) => b - a)
     years.value = yearList
     if (!yearSet.has(selectedYear.value) && yearList.length > 0) {
         selectedYear.value = yearList[0]
+    }
+    if (yearList.length > 0) {
+        const minYear = yearList[yearList.length - 1]
+        const maxYear = yearList[0]
+        if (deltaYearA.value === null || !yearSet.has(deltaYearA.value)) {
+            deltaYearA.value = minYear
+        }
+        if (deltaYearB.value === null || !yearSet.has(deltaYearB.value)) {
+            deltaYearB.value = maxYear
+        }
     }
 }
 
@@ -145,8 +208,10 @@ function renderMap() {
 
     const svg = d3.select('#map-svg')
     svg.selectAll('*').remove()
-    const yearData = happinessByYear.value.get(selectedYear.value) ?? new Map()
-    const maxRank = d3.max(Array.from(yearData.values()), (entry) => entry.rank) ?? 0
+    const yearData =
+        mode.value === 'score'
+            ? happinessByYear.value.get(selectedYear.value) ?? new Map()
+            : new Map()
 
     const projection = d3
         .geoNaturalEarth1()
@@ -168,12 +233,19 @@ function renderMap() {
         '#c84d04',
         '#742100'
     ])
-    const colorScale = d3.scaleDiverging(divergingPalette).domain([10, 5, 0]).clamp(true)
+    const colorScale = d3
+        .scaleDiverging(divergingPalette)
+        .domain(mode.value === 'score' ? [10, 5, 0] : [1, 0, -1])
+        .clamp(true)
 
     svg.append('rect').attr('width', size.value.width).attr('height', size.value.height).attr('fill', '#f7f7f2')
+    svg.append('defs')
 
     const yearBadge = svg.append('g').attr('transform', `translate(${margin.left + 6}, ${margin.top + 6})`)
-    const yearLabel = String(selectedYear.value)
+    const yearLabel =
+        mode.value === 'score'
+            ? String(selectedYear.value)
+            : `${deltaYearA.value ?? ''}–${deltaYearB.value ?? ''}`
     const badgePaddingX = 12
     const badgePaddingY = 8
     const badgeText = yearBadge
@@ -196,6 +268,26 @@ function renderMap() {
         .attr('stroke-width', 0.9)
 
     const mapLayer = svg.append('g')
+    const maxRank =
+        mode.value === 'score' ? d3.max(Array.from(yearData.values()), (entry) => entry.rank) ?? 0 : 0
+    const deltaMax = (() => {
+        if (mode.value !== 'delta' || deltaYearA.value === null || deltaYearB.value === null) return 1
+        const fromData = happinessByYear.value.get(deltaYearA.value)
+        const toData = happinessByYear.value.get(deltaYearB.value)
+        if (!fromData || !toData) return 1
+        const diffs: number[] = []
+        fromData.forEach((entry, key) => {
+            const other = toData.get(key)
+            if (!other) return
+            diffs.push(other.score - entry.score)
+        })
+        const maxAbs = d3.max(diffs.map((value) => Math.abs(value))) ?? 1
+        return maxAbs === 0 ? 1 : maxAbs
+    })()
+    if (mode.value === 'delta') {
+        colorScale.domain([deltaMax, 0, -deltaMax])
+    }
+
     mapLayer
         .selectAll('path')
         .data(geoData.value.features)
@@ -206,22 +298,101 @@ function renderMap() {
                 feature.properties?.ADMIN ??
                 feature.properties?.admin ??
                 '') as string
-            const entry = yearData.get(canonicalizeCountryName(name))
-            return entry === undefined ? '#d9d9d9' : (colorScale(entry.score) as string)
+            const key = canonicalizeCountryName(name)
+            if (mode.value === 'score') {
+                const entry = yearData.get(key)
+                return entry === undefined ? '#d9d9d9' : (colorScale(entry.score) as string)
+            }
+            if (deltaYearA.value === null || deltaYearB.value === null) return '#d9d9d9'
+            const fromData = happinessByYear.value.get(deltaYearA.value)
+            const toData = happinessByYear.value.get(deltaYearB.value)
+            const entryA = fromData?.get(key)
+            const entryB = toData?.get(key)
+            if (!entryA || !entryB) return '#d9d9d9'
+            const deltaScore = entryB.score - entryA.score
+            return colorScale(deltaScore) as string
         })
         .attr('stroke', '#ffffff')
         .attr('stroke-width', 0.5)
+        .on('click', (event, feature) => {
+            const name = (feature.properties?.name ??
+                feature.properties?.ADMIN ??
+                feature.properties?.admin ??
+                '') as string
+            const key = canonicalizeCountryName(name)
+            if (mode.value === 'score') {
+                const entry = yearData.get(key)
+                emit('country-selected', {
+                    key,
+                    name,
+                    year: selectedYear.value,
+                    score: entry?.score ?? null,
+                    rank: entry?.rank ?? null,
+                    factors: entry?.factors ?? [],
+                    hasData: !!entry
+                })
+                return
+            }
+            const yearB = deltaYearB.value
+            if (yearB === null) {
+                emit('country-selected', {
+                    key,
+                    name,
+                    year: null,
+                    score: null,
+                    rank: null,
+                    factors: [],
+                    hasData: false
+                })
+                return
+            }
+            const toData = happinessByYear.value.get(yearB)
+            const entryB = toData?.get(key)
+            emit('country-selected', {
+                key,
+                name,
+                year: yearB,
+                score: entryB?.score ?? null,
+                rank: entryB?.rank ?? null,
+                factors: entryB?.factors ?? [],
+                hasData: !!entryB
+            })
+        })
         .on('mousemove', (event, feature) => {
             if (!tooltip.value || !mapStage.value) return
             const name = (feature.properties?.name ??
                 feature.properties?.ADMIN ??
                 feature.properties?.admin ??
                 '') as string
-            const entry = yearData.get(canonicalizeCountryName(name))
             const safeName = escapeHtml(name)
-            tooltip.value.innerHTML = entry
-                ? `<strong>${safeName}</strong><br>Score: ${entry.score.toFixed(2)}<br>Rank: ${entry.rank}`
-                : `<strong>${safeName}</strong>: no data`
+            const key = canonicalizeCountryName(name)
+            if (mode.value === 'score') {
+                const entry = yearData.get(key)
+                tooltip.value.innerHTML = entry
+                    ? `<strong>${safeName}</strong><br>Score: ${entry.score.toFixed(2)}<br>Rank: ${entry.rank}`
+                    : `<strong>${safeName}</strong>: no data`
+            } else {
+                if (deltaYearA.value === null || deltaYearB.value === null) {
+                    tooltip.value.innerHTML = `<strong>${safeName}</strong>: no data`
+                } else {
+                    const fromData = happinessByYear.value.get(deltaYearA.value)
+                    const toData = happinessByYear.value.get(deltaYearB.value)
+                    const entryA = fromData?.get(key)
+                    const entryB = toData?.get(key)
+                    if (!entryA || !entryB) {
+                        tooltip.value.innerHTML = `<strong>${safeName}</strong>: no data`
+                    } else {
+                        const deltaScore = entryB.score - entryA.score
+                        const deltaRank = entryB.rank - entryA.rank
+                        const scoreLabel = deltaScore >= 0 ? `+${deltaScore.toFixed(2)}` : deltaScore.toFixed(2)
+                        const rankLabel = deltaRank >= 0 ? `+${deltaRank}` : `${deltaRank}`
+                        tooltip.value.innerHTML = `<strong>${safeName}</strong><br>` +
+                            `Year A (${deltaYearA.value}): ${entryA.score.toFixed(2)} / Rank ${entryA.rank}<br>` +
+                            `Year B (${deltaYearB.value}): ${entryB.score.toFixed(2)} / Rank ${entryB.rank}<br>` +
+                            `Delta Score: ${scoreLabel}<br>Delta Rank: ${rankLabel}`
+                    }
+                }
+            }
             const bounds = mapStage.value.getBoundingClientRect()
             const x = event.clientX - bounds.left + 12
             const y = event.clientY - bounds.top + 12
@@ -234,14 +405,17 @@ function renderMap() {
             tooltip.value.style.opacity = '0'
         })
 
-    const highlightFeatures = geoData.value.features.filter((feature) => {
-        const name = (feature.properties?.name ??
-            feature.properties?.ADMIN ??
-            feature.properties?.admin ??
-            '') as string
-        const entry = yearData.get(canonicalizeCountryName(name))
-        return entry?.rank === 1 || entry?.rank === maxRank
-    })
+    const highlightFeatures =
+        mode.value === 'score'
+            ? geoData.value.features.filter((feature) => {
+                  const name = (feature.properties?.name ??
+                      feature.properties?.ADMIN ??
+                      feature.properties?.admin ??
+                      '') as string
+                  const entry = yearData.get(canonicalizeCountryName(name))
+                  return entry?.rank === 1 || entry?.rank === maxRank
+              })
+            : []
 
     const highlightLayer = svg.append('g')
     highlightLayer
@@ -262,14 +436,36 @@ function renderMap() {
         .attr('stroke-linejoin', 'round')
         .attr('stroke-linecap', 'round')
 
+    const selectedFeatures = geoData.value.features.filter((feature) => {
+        const name = (feature.properties?.name ??
+            feature.properties?.ADMIN ??
+            feature.properties?.admin ??
+            '') as string
+        const key = canonicalizeCountryName(name)
+        return props.selectedKeys.includes(key)
+    })
+
+    const selectedLayer = svg.append('g')
+    selectedLayer
+        .selectAll('path')
+        .data(selectedFeatures)
+        .join('path')
+        .attr('d', (feature) => path(feature as d3.GeoPermissibleObjects) ?? '')
+        .attr('fill', 'none')
+        .attr('stroke', '#0b0b0b')
+        .attr('stroke-width', 2)
+        .attr('vector-effect', 'non-scaling-stroke')
+        .attr('stroke-linejoin', 'round')
+        .attr('stroke-linecap', 'round')
+
     const legendWidth = Math.max(180, size.value.width * 0.5)
     const legendHeight = 10
     const legendX = (size.value.width - legendWidth) / 2
     const legendY = size.value.height - margin.bottom + 24
 
-    const defs = svg.append('defs')
+    const legendDefs = svg.append('defs')
     const gradientId = 'legend-gradient'
-    const gradient = defs
+    const gradient = legendDefs
         .append('linearGradient')
         .attr('id', gradientId)
         .attr('x1', '0%')
@@ -291,7 +487,10 @@ function renderMap() {
         .attr('stroke', '#bdbdbd')
         .attr('stroke-width', 0.5)
 
-    const legendScale = d3.scaleLinear().domain([0, 10]).range([0, legendWidth])
+    const legendScale = d3
+        .scaleLinear()
+        .domain(mode.value === 'score' ? [0, 10] : [-deltaMax, deltaMax])
+        .range([0, legendWidth])
     const legendAxis = d3.axisBottom(legendScale).ticks(5).tickSize(4)
 
     svg.append('g')
@@ -306,7 +505,7 @@ function renderMap() {
         .attr('text-anchor', 'middle')
         .style('font-size', '0.8rem')
         .style('fill', '#3a3a3a')
-        .text('Happiness Score')
+        .text(mode.value === 'score' ? 'Happiness Score' : 'Score Delta (Year B - Year A)')
 }
 
 function stopPlayback() {
@@ -341,6 +540,12 @@ function togglePlayback() {
     }
 }
 
+watch(mode, (next) => {
+    if (next === 'delta') {
+        stopPlayback()
+    }
+})
+
 watchEffect(() => {
     if (canRender.value) {
         renderMap()
@@ -353,11 +558,19 @@ onMounted(() => {
     window.addEventListener('resize', debouncedOnResize)
     onResize()
     void loadData()
+    if (mapStage.value) {
+        resizeObserver = new ResizeObserver(() => onResize())
+        resizeObserver.observe(mapStage.value)
+    }
 })
 
 onBeforeUnmount(() => {
     stopPlayback()
     window.removeEventListener('resize', debouncedOnResize)
+    if (resizeObserver) {
+        resizeObserver.disconnect()
+        resizeObserver = null
+    }
 })
 </script>
 
@@ -367,6 +580,13 @@ onBeforeUnmount(() => {
     <div class="chart-container d-flex" ref="mapContainer">
         <div class="map-controls">
             <label class="select-control">
+                <span>Mode</span>
+                <select v-model="mode">
+                    <option value="score">Score</option>
+                    <option value="delta">Delta</option>
+                </select>
+            </label>
+            <label v-if="mode === 'score'" class="select-control">
                 <span>Year</span>
                 <select v-model.number="selectedYear">
                     <option v-for="year in years" :key="year" :value="year">
@@ -374,7 +594,23 @@ onBeforeUnmount(() => {
                     </option>
                 </select>
             </label>
-            <button class="play-button" type="button" @click="togglePlayback">
+            <label v-else class="select-control">
+                <span>Year A</span>
+                <select v-model.number="deltaYearA">
+                    <option v-for="year in years" :key="`a-${year}`" :value="year">
+                        {{ year }}
+                    </option>
+                </select>
+            </label>
+            <label v-if="mode === 'delta'" class="select-control">
+                <span>Year B</span>
+                <select v-model.number="deltaYearB">
+                    <option v-for="year in years" :key="`b-${year}`" :value="year">
+                        {{ year }}
+                    </option>
+                </select>
+            </label>
+            <button v-if="mode === 'score'" class="play-button" type="button" @click="togglePlayback">
                 {{ isPlaying ? 'PAUSE TRANSITION' : 'PLAY TRANSITION' }}
             </button>
         </div>
