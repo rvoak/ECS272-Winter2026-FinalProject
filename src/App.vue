@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import HappinessMap from './components/HappinessMap.vue'
 import FactorComparisonPanel from './components/FactorComparisonPanel.vue'
+import MoversList from './components/MoversList.vue'
 
 interface FactorEntry {
   label: string
@@ -19,6 +20,7 @@ interface PanelData {
 }
 
 const selectedCountries = ref<PanelData[]>([])
+const activeView = ref<'map' | 'movers'>('map')
 
 const onCountrySelected = (payload: PanelData) => {
   const existingIndex = selectedCountries.value.findIndex((item) => item.key === payload.key)
@@ -36,7 +38,12 @@ const onCountrySelected = (payload: PanelData) => {
 <!-- Using Vuetify components (Vuetify should be registered in the app entry). -->
 <template>
   <VContainer id="main-container" class="d-flex flex-column" fluid>
-    <div class="dashboard-layout" :class="{ 'panel-open': selectedCountries.length > 0 }">
+    <div class="top-bar">
+      <button class="view-toggle" type="button" @click="activeView = activeView === 'map' ? 'movers' : 'map'">
+        {{ activeView === 'map' ? 'SHOW MOVERS LIST' : 'SHOW MAP' }}
+      </button>
+    </div>
+    <div v-if="activeView === 'map'" class="dashboard-layout" :class="{ 'panel-open': selectedCountries.length > 0 }">
       <div class="map-shell">
         <HappinessMap :selectedKeys="selectedCountries.map((item) => item.key)" @country-selected="onCountrySelected" />
       </div>
@@ -46,12 +53,41 @@ const onCountrySelected = (payload: PanelData) => {
         @close="selectedCountries = []"
       />
     </div>
+    <div v-else class="movers-shell">
+      <MoversList />
+    </div>
   </VContainer>
 </template>
 
 <style scoped>
 #main-container{
   height: 100%;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: flex-start;
+  padding: 8px 12px 0;
+}
+
+.view-toggle {
+  border: 1px solid #b7c3d6;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: #eef3f9;
+  color: #1f2f4a;
+  cursor: pointer;
+}
+
+.view-toggle:hover {
+  background: #e3ecf7;
+}
+
+.movers-shell {
+  flex: 1;
+  min-height: 0;
 }
 
 .dashboard-layout {

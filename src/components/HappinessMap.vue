@@ -579,37 +579,39 @@ onBeforeUnmount(() => {
 <template>
     <div class="chart-container d-flex" ref="mapContainer">
         <div class="map-controls">
-            <label class="select-control">
-                <span>Mode</span>
-                <select v-model="mode">
-                    <option value="score">Score</option>
-                    <option value="delta">Delta</option>
-                </select>
-            </label>
-            <label v-if="mode === 'score'" class="select-control">
-                <span>Year</span>
-                <select v-model.number="selectedYear">
-                    <option v-for="year in years" :key="year" :value="year">
-                        {{ year }}
-                    </option>
-                </select>
-            </label>
-            <label v-else class="select-control">
-                <span>Year A</span>
-                <select v-model.number="deltaYearA">
-                    <option v-for="year in years" :key="`a-${year}`" :value="year">
-                        {{ year }}
-                    </option>
-                </select>
-            </label>
-            <label v-if="mode === 'delta'" class="select-control">
-                <span>Year B</span>
-                <select v-model.number="deltaYearB">
-                    <option v-for="year in years" :key="`b-${year}`" :value="year">
-                        {{ year }}
-                    </option>
-                </select>
-            </label>
+            <div class="control-group">
+                <label class="select-control">
+                    <span>Mode</span>
+                    <select v-model="mode">
+                        <option value="score">Score</option>
+                        <option value="delta">Delta</option>
+                    </select>
+                </label>
+                <label v-if="mode === 'score'" class="select-control">
+                    <span>Year</span>
+                    <select v-model.number="selectedYear">
+                        <option v-for="year in years" :key="year" :value="year">
+                            {{ year }}
+                        </option>
+                    </select>
+                </label>
+                <label v-else class="select-control">
+                    <span>Year A</span>
+                    <select v-model.number="deltaYearA">
+                        <option v-for="year in years" :key="`a-${year}`" :value="year">
+                            {{ year }}
+                        </option>
+                    </select>
+                </label>
+                <label v-if="mode === 'delta'" class="select-control">
+                    <span>Year B</span>
+                    <select v-model.number="deltaYearB">
+                        <option v-for="year in years" :key="`b-${year}`" :value="year">
+                            {{ year }}
+                        </option>
+                    </select>
+                </label>
+            </div>
             <button v-if="mode === 'score'" class="play-button" type="button" @click="togglePlayback">
                 {{ isPlaying ? 'PAUSE TRANSITION' : 'PLAY TRANSITION' }}
             </button>
@@ -632,15 +634,19 @@ onBeforeUnmount(() => {
 
 .map-controls {
     display: flex;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: center;
     gap: 16px;
     padding: 8px 12px 0;
     color: #2f2f2f;
 }
 
+.control-group {
+    display: flex;
+    gap: 16px;
+}
+
 .play-button {
-    margin-left: auto;
     border: 1px solid #b7c3d6;
     border-radius: 8px;
     padding: 8px 14px;
@@ -669,11 +675,20 @@ onBeforeUnmount(() => {
 }
 
 .select-control select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
     border: 1px solid #c7c7c7;
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 8px 36px 8px 12px;
     font-size: 1rem;
     background: #ffffff;
+    background-image: linear-gradient(45deg, transparent 50%, #2f3b4f 50%),
+        linear-gradient(135deg, #2f3b4f 50%, transparent 50%),
+        linear-gradient(to right, #ffffff, #ffffff);
+    background-position: calc(100% - 18px) 55%, calc(100% - 12px) 55%, 100% 0;
+    background-size: 6px 6px, 6px 6px, 2.5em 100%;
+    background-repeat: no-repeat;
     color: #1f1f1f;
 }
 
