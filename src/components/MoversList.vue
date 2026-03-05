@@ -15,6 +15,13 @@ interface CountryDelta {
     endRank: number
 }
 
+interface SeriesPoint {
+    year: number
+    score: number
+    rank: number
+    factors: { label: string; value: number }[]
+}
+
 const rows = ref<CountryDelta[]>([])
 const yearRange = ref<{ start: number; end: number } | null>(null)
 const availableYears = ref<number[]>([])
@@ -23,6 +30,17 @@ const endYear = ref<number | null>(null)
 const mode = ref<MetricMode>('score')
 const listRef = ref<HTMLElement | null>(null)
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
+const seriesByCountry = ref<Map<string, SeriesPoint[]>>(new Map())
+const countryOptions = ref<{ name: string; series: SeriesPoint[] }[]>([])
+
+const emit = defineEmits<{
+    (event: 'country-selected', payload: {
+        name: string
+        series: SeriesPoint[]
+        mode: MetricMode
+        options: { name: string; series: SeriesPoint[] }[]
+    }): void
+}>()
 
 const maxMagnitude = computed(() => {
     if (rows.value.length === 0) return 1
@@ -96,9 +114,19 @@ const topDecliners = computed(() => {
         .slice(0, 10)
 })
 
+const factorColumns = [
+    { label: 'Log GDP per capita', column: 'Explained by: Log GDP per capita' },
+    { label: 'Social support', column: 'Explained by: Social support' },
+    { label: 'Healthy life expectancy', column: 'Explained by: Healthy life expectancy' },
+    { label: 'Freedom to make life choices', column: 'Explained by: Freedom to make life choices' },
+    { label: 'Generosity', column: 'Explained by: Generosity' },
+    { label: 'Perceptions of corruption', column: 'Explained by: Perceptions of corruption' }
+]
+
 async function load() {
     const data = await d3.csv('../../data/Happiness_Data_All.csv')
     const byYear = new Map<number, Map<string, { score: number; rank: number }>>()
+    const byCountry = new Map<string, Map<number, { score: number; rank: number; factors: { label: string; value: number }[] }>>()
     const years = new Set<number>()
 
     data.forEach((row) => {
@@ -110,6 +138,14 @@ async function load() {
         years.add(year)
         if (!byYear.has(year)) byYear.set(year, new Map())
         byYear.get(year)?.set(country, { score, rank })
+        const factors = factorColumns
+            .map((factor) => {
+                const value = Number(row[factor.column])
+                return Number.isNaN(value) ? null : { label: factor.label, value }
+            })
+            .filter((value): value is { label: string; value: number } => value !== null)
+        if (!byCountry.has(country)) byCountry.set(country, new Map())
+        byCountry.get(country)?.set(year, { score, rank, factors })
     })
 
     const yearList = Array.from(years).sort((a, b) => a - b)
@@ -150,6 +186,21 @@ async function load() {
         })
     })
     rows.value = deltas
+
+    const seriesMap = new Map<string, SeriesPoint[]>()
+    byCountry.forEach((yearMap, country) => {
+        const points: SeriesPoint[] = []
+        availableYears.value.forEach((year) => {
+            const entry = yearMap.get(year)
+            if (!entry) return
+            points.push({ year, score: entry.score, rank: entry.rank, factors: entry.factors })
+        })
+        seriesMap.set(country, points)
+    })
+    seriesByCountry.value = seriesMap
+    countryOptions.value = Array.from(seriesMap.entries())
+        .map(([name, series]) => ({ name, series }))
+        .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 onMounted(() => {
@@ -198,7 +249,12 @@ watch([startYear, endYear], () => {
         <div class="movers-columns">
             <div class="movers-section">
                 <h3>Top 10 Gains</h3>
-                <div v-for="row in topGainers" :key="`up-${row.key}`" class="mover-row">
+                <div
+                    v-for="row in topGainers"
+                    :key="`up-${row.key}`"
+                    class="mover-row"
+                    @click="emit('country-selected', { name: row.name, series: seriesByCountry.get(row.name) ?? [], mode: mode.value, options: countryOptions })"
+                >
                     <div class="mover-label">{{ row.name }}</div>
                     <div
                         class="mover-bar-track"
@@ -214,15 +270,27 @@ watch([startYear, endYear], () => {
                                     : (Math.abs(row.deltaRank) / maxMagnitude) * 100}%`
                             }"
                         ></div>
-                    </div>
-                    <div class="mover-value">
-                        {{ mode === 'score' ? formatDelta(row.deltaScore, false) : formatDelta(row.deltaRank, true) }}
+                        <div
+                            class="mover-value"
+                            :style="{
+                                left: `${mode === 'score'
+                                    ? (Math.abs(row.deltaScore) / maxMagnitude) * 100
+                                    : (Math.abs(row.deltaRank) / maxMagnitude) * 100}%`
+                            }"
+                        >
+                            {{ mode === 'score' ? formatDelta(row.deltaScore, false) : formatDelta(row.deltaRank, true) }}
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="movers-section">
                 <h3>Top 10 Declines</h3>
-                <div v-for="row in topDecliners" :key="`down-${row.key}`" class="mover-row">
+                <div
+                    v-for="row in topDecliners"
+                    :key="`down-${row.key}`"
+                    class="mover-row"
+                    @click="emit('country-selected', { name: row.name, series: seriesByCountry.get(row.name) ?? [], mode: mode.value, options: countryOptions })"
+                >
                     <div class="mover-label">{{ row.name }}</div>
                     <div
                         class="mover-bar-track"
@@ -238,9 +306,16 @@ watch([startYear, endYear], () => {
                                     : (Math.abs(row.deltaRank) / maxMagnitude) * 100}%`
                             }"
                         ></div>
-                    </div>
-                    <div class="mover-value">
-                        {{ mode === 'score' ? formatDelta(row.deltaScore, false) : formatDelta(row.deltaRank, true) }}
+                        <div
+                            class="mover-value"
+                            :style="{
+                                left: `${mode === 'score'
+                                    ? (Math.abs(row.deltaScore) / maxMagnitude) * 100
+                                    : (Math.abs(row.deltaRank) / maxMagnitude) * 100}%`
+                            }"
+                        >
+                            {{ mode === 'score' ? formatDelta(row.deltaScore, false) : formatDelta(row.deltaRank, true) }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -333,9 +408,9 @@ watch([startYear, endYear], () => {
 }
 
 .movers-columns {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
     overflow: auto;
     padding-right: 6px;
 }
@@ -354,9 +429,15 @@ watch([startYear, endYear], () => {
 
 .mover-row {
     display: grid;
-    grid-template-columns: minmax(140px, 1fr) 2fr 80px;
+    grid-template-columns: 140px 1fr;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.mover-row:hover {
+    background: rgba(31, 47, 74, 0.04);
+    border-radius: 6px;
 }
 
 .mover-label {
@@ -366,9 +447,11 @@ watch([startYear, endYear], () => {
 
 .mover-bar-track {
     height: 12px;
-    background: #eef2f7;
+    background: transparent;
     border-radius: 999px;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
+    max-width: 50%;
 }
 
 .mover-bar {
@@ -385,9 +468,12 @@ watch([startYear, endYear], () => {
 }
 
 .mover-value {
-    font-size: 0.8rem;
+    position: absolute;
+    top: -4px;
+    transform: translateX(6px);
+    font-size: 0.75rem;
     color: #1f2f4a;
-    text-align: right;
+    white-space: nowrap;
 }
 
 .movers-tooltip {

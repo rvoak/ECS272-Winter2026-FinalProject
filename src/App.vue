@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import HappinessMap from './components/HappinessMap.vue'
 import FactorComparisonPanel from './components/FactorComparisonPanel.vue'
 import MoversList from './components/MoversList.vue'
+import MoversDetailPanel from './components/MoversDetailPanel.vue'
 
 interface FactorEntry {
   label: string
@@ -21,6 +22,17 @@ interface PanelData {
 
 const selectedCountries = ref<PanelData[]>([])
 const activeView = ref<'map' | 'movers'>('map')
+const moversSelection = ref<{
+  name: string | null
+  series: { year: number; score: number; rank: number; factors: { label: string; value: number }[] }[]
+  mode: 'score' | 'rank'
+  options: { name: string; series: { year: number; score: number; rank: number; factors: { label: string; value: number }[] }[] }[]
+}>({
+  name: null,
+  series: [],
+  mode: 'score',
+  options: []
+})
 
 const onCountrySelected = (payload: PanelData) => {
   const existingIndex = selectedCountries.value.findIndex((item) => item.key === payload.key)
@@ -54,7 +66,19 @@ const onCountrySelected = (payload: PanelData) => {
       />
     </div>
     <div v-else class="movers-shell">
-      <MoversList />
+      <div class="movers-layout" :class="{ 'panel-open': !!moversSelection.name }">
+        <div class="movers-list-shell">
+          <MoversList @country-selected="(payload) => (moversSelection = payload)" />
+        </div>
+        <MoversDetailPanel
+          :open="!!moversSelection.name"
+          :name="moversSelection.name"
+          :series="moversSelection.series"
+          :mode="moversSelection.mode"
+          :options="moversSelection.options"
+          @close="moversSelection = { name: null, series: [], mode: 'score', options: [] }"
+        />
+      </div>
     </div>
   </VContainer>
 </template>
@@ -88,6 +112,18 @@ const onCountrySelected = (payload: PanelData) => {
 .movers-shell {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.movers-layout {
+  display: flex;
+  height: 100%;
+}
+
+.movers-list-shell {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .dashboard-layout {
