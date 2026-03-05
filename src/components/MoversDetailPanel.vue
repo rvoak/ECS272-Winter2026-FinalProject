@@ -89,7 +89,7 @@ const renderScoreChart = () => {
         .attr('stroke-width', 2)
         .attr('d', line)
 
-    g.selectAll('circle')
+    const scorePoints = g.selectAll('circle')
         .data(selectedSeries.value)
         .join('circle')
         .attr('cx', (d) => xScale(d.year) ?? 0)
@@ -102,6 +102,8 @@ const renderScoreChart = () => {
         })
         .on('mousemove', (event) => moveTooltip(event as MouseEvent))
         .on('mouseleave', hideTooltip)
+        .attr('pointer-events', 'all')
+
 
     g.append('text')
         .attr('x', width / 2)
@@ -174,7 +176,7 @@ const renderFactorChart = () => {
             .attr('stroke-width', 1.5)
             .attr('d', line)
 
-        g.selectAll(`circle.factor-${index}`)
+        const factorPoints = g.selectAll(`circle.factor-${index}`)
             .data(selectedSeries.value)
             .join('circle')
             .attr('class', `factor-${index}`)
@@ -192,6 +194,8 @@ const renderFactorChart = () => {
             })
             .on('mousemove', (event) => moveTooltip(event as MouseEvent))
             .on('mouseleave', hideTooltip)
+            .attr('pointer-events', 'all')
+
     })
 
     const legend = g.append('g').attr('transform', `translate(0, ${height + 18})`)
@@ -238,23 +242,19 @@ const onSelectionChange = () => {
 }
 
 const showTooltip = (event: MouseEvent, text: string) => {
-    if (!panelRef.value) return
-    const bounds = panelRef.value.getBoundingClientRect()
     tooltip.value = {
         visible: true,
-        x: event.clientX - bounds.left + 10,
-        y: event.clientY - bounds.top + 10,
+        x: event.clientX + 12,
+        y: event.clientY + 12,
         text
     }
 }
 
 const moveTooltip = (event: MouseEvent) => {
-    if (!panelRef.value) return
-    const bounds = panelRef.value.getBoundingClientRect()
     tooltip.value = {
         ...tooltip.value,
-        x: event.clientX - bounds.left + 10,
-        y: event.clientY - bounds.top + 10
+        x: event.clientX + 12,
+        y: event.clientY + 12
     }
 }
 
@@ -300,9 +300,11 @@ onBeforeUnmount(() => {
                 <svg></svg>
             </div>
         </div>
+    <teleport to="body">
         <div v-if="tooltip.visible" class="panel-tooltip" :style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }">
             {{ tooltip.text }}
         </div>
+    </teleport>
     </aside>
 </template>
 
@@ -325,6 +327,7 @@ onBeforeUnmount(() => {
     width: 640px;
     flex: 0 0 640px;
     transform: translateX(0);
+    overflow: visible;
 }
 
 .panel-header {
@@ -406,14 +409,14 @@ onBeforeUnmount(() => {
 }
 
 .panel-tooltip {
-    position: absolute;
+    position: fixed;
     background: rgba(20, 20, 24, 0.92);
     color: #ffffff;
     padding: 6px 8px;
     border-radius: 6px;
     font-size: 0.75rem;
     pointer-events: none;
-    z-index: 5;
+    z-index: 9999;
     white-space: nowrap;
 }
 
