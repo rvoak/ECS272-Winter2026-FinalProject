@@ -27,7 +27,7 @@ const yearRange = ref<{ start: number; end: number } | null>(null)
 const availableYears = ref<number[]>([])
 const startYear = ref<number | null>(null)
 const endYear = ref<number | null>(null)
-const mode = ref<MetricMode>('score')
+const mode = ref<MetricMode>('rank')
 const listRef = ref<HTMLElement | null>(null)
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const seriesByCountry = ref<Map<string, SeriesPoint[]>>(new Map())
@@ -328,11 +328,11 @@ watch([startYear, endYear], () => {
 
 <style scoped>
 .movers {
-    padding: 12px 16px 24px;
+    padding: 8px 12px 16px;
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
     position: relative;
 }
 
@@ -340,31 +340,31 @@ watch([startYear, endYear], () => {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    gap: 16px;
+    gap: 10px;
 }
 
 .movers-header h2 {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 1.05rem;
     color: #1f2f4a;
 }
 
 .movers-header p {
     margin: 4px 0 0;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: #5a6577;
 }
 
 .mode-toggle {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
 .mode-toggle button {
     border: 1px solid #b7c3d6;
     border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 0.85rem;
+    padding: 4px 10px;
+    font-size: 0.75rem;
     background: #eef3f9;
     color: #1f2f4a;
     cursor: pointer;
@@ -378,9 +378,9 @@ watch([startYear, endYear], () => {
 
 .year-selectors {
     display: flex;
-    gap: 16px;
+    gap: 10px;
     align-items: center;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: #2f3b4f;
 }
 
@@ -396,21 +396,21 @@ watch([startYear, endYear], () => {
     -moz-appearance: none;
     border: 1px solid #c7c7c7;
     border-radius: 6px;
-    padding: 6px 30px 6px 10px;
-    font-size: 0.85rem;
+    padding: 4px 26px 4px 8px;
+    font-size: 0.75rem;
     background: #ffffff;
     background-image: linear-gradient(45deg, transparent 50%, #2f3b4f 50%),
         linear-gradient(135deg, #2f3b4f 50%, transparent 50%),
         linear-gradient(to right, #ffffff, #ffffff);
     background-position: calc(100% - 16px) 55%, calc(100% - 10px) 55%, 100% 0;
-    background-size: 6px 6px, 6px 6px, 2.2em 100%;
+    background-size: 5px 5px, 5px 5px, 2em 100%;
     background-repeat: no-repeat;
 }
 
 .movers-columns {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 14px;
     overflow: auto;
     padding-right: 6px;
 }
@@ -418,12 +418,12 @@ watch([startYear, endYear], () => {
 .movers-section {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
 }
 
 .movers-section h3 {
     margin: 0;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     color: #1f2f4a;
 }
 
@@ -431,7 +431,7 @@ watch([startYear, endYear], () => {
     display: grid;
     grid-template-columns: 140px 1fr;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     cursor: pointer;
 }
 
@@ -441,12 +441,12 @@ watch([startYear, endYear], () => {
 }
 
 .mover-label {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: #2f3b4f;
 }
 
 .mover-bar-track {
-    height: 12px;
+    height: 10px;
     background: transparent;
     border-radius: 999px;
     overflow: visible;
@@ -471,7 +471,7 @@ watch([startYear, endYear], () => {
     position: absolute;
     top: -4px;
     transform: translateX(6px);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: #1f2f4a;
     white-space: nowrap;
 }
