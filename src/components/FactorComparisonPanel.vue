@@ -37,12 +37,12 @@ const legendLabels = [
 ]
 
 const segmentColors = [
-    '#2b59c3',
-    '#3b82f6',
-    '#22c55e',
-    '#eab308',
-    '#f97316',
-    '#dc2626'
+    '#3aa59a',
+    '#4edacb',
+    '#b7e36b',
+    '#c992fb',
+    '#ee6aa6',
+    '#d86f86'
 ]
 
 const showTooltip = (event: MouseEvent, label: string, value: number) => {
@@ -203,7 +203,7 @@ const hideTooltip = () => {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px 12px;
-    margin-top: 18px;
+    margin-top: 28px;
     margin-bottom: 8px;
     font-size: 0.75rem;
     color: #344055;

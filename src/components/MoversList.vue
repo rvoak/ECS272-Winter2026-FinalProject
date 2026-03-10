@@ -28,6 +28,7 @@ const availableYears = ref<number[]>([])
 const startYear = ref<number | null>(null)
 const endYear = ref<number | null>(null)
 const mode = ref<MetricMode>('rank')
+const showModeToggle = false
 const listRef = ref<HTMLElement | null>(null)
 const tooltip = ref({ visible: false, x: 0, y: 0, text: '' })
 const seriesByCountry = ref<Map<string, SeriesPoint[]>>(new Map())
@@ -219,7 +220,7 @@ watch([startYear, endYear], () => {
                 <h2>Movers List</h2>
                 <p v-if="yearRange">Change from {{ yearRange.start }} to {{ yearRange.end }}</p>
             </div>
-            <div class="mode-toggle">
+            <div v-if="showModeToggle" class="mode-toggle">
                 <button :class="{ active: mode === 'score' }" type="button" @click="mode = 'score'">
                     Score Change
                 </button>
