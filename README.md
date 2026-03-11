@@ -3,9 +3,11 @@
 This project explores where happiness is concentrated, what factors explain differences between countries, and how national well-being changes over time. The dashboard is built around the World Happiness data (Gallup World Poll, 2012–2024) and uses the additive decomposition of the happiness score to compare component factors.
 
 ## How to Run
-1. Install dependencies: `npm install`
-2. Start the dev server: `npm run dev`
-3. Open the local URL printed in the terminal.
+1. Clone this repository: `git clone https://github.com/rvoak/ECS272-Winter2026-FinalProject.git`
+2. Change into the cloned directory: `cd ECS272-Winter2026-FinalProject`
+3. Install dependencies: `npm install`
+4. Start the dev server: `npm run dev`
+5. Open the local URL printed in the terminal.
 
 ## Dashboard Overview
 The dashboard provides two main views:
