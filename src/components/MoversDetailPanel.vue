@@ -130,7 +130,7 @@ const factorLabels = [
     'Perceptions of corruption'
 ]
 
-const factorColors = ['#2b59c3', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#dc2626']
+const factorColors = ['#3aa59a', '#4edacb', '#b7e36b', '#c992fb', '#ee6aa6', '#d86f86']
 
 const renderFactorChart = () => {
     const { width: fullWidth, height: fullHeight } = getChartSize(factorRef.value)
