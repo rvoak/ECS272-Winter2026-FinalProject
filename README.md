@@ -43,3 +43,6 @@ The dashboard provides two main views:
   - Country dropdown to switch the trend view.
   - Hover any point to see year and value.
   - Close button to dismiss the panel.
+
+# Acknowledgements
+The template for this dashboard was used from the one provided in the [class homeworks](https://github.com/VIDITeaching/ECS272-Winter2026/tree/main/Homework2). AI tools (specifically, OpenAI Codex) were used for two tasks: generating this readme file based on the code, and formatting / prettifying the javascript code itself. 
